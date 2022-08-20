@@ -1,4 +1,8 @@
 <p align="center">
+Сборка Yii2 с использованием docker-compose(php8, nginx, postgresql11)
+Должен быть установлен traefik. Для установки в /etc/hosts надо прописать "127.0.0.1 symfony.local yii2.local secure.yii2.local".
+</p>
+<p align="center">
     <a href="https://github.com/yiisoft" target="_blank">
         <img src="https://avatars0.githubusercontent.com/u/993323" height="100px">
     </a>
