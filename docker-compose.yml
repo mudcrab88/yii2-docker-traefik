@@ -1,0 +1,73 @@
+version: "3.7"
+
+services:
+  db:
+    image: postgres:11
+    ports:
+      - '5432:5432'
+    container_name: '${PROJECT_NAME}_db'
+    working_dir: /app
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./docker/data/dump:/app/dump
+      - ./docker/data/postgresql:/var/lib/postgresql/data
+    networks:
+      - local-network
+  #PHP-FPM
+  app:
+    container_name: ${PROJECT_NAME}_app
+    build:
+      context: ./
+      dockerfile: docker/app.Dockerfile
+    environment:
+      XDEBUG_CONFIG: "remote_host=192.168.200.1 remote_enable=1"
+      PHP_IDE_CONFIG: "serverName=Docker"
+    volumes:
+      - ./:/app
+      - ./docker/config/php.ini:/usr/local/etc/php/php.ini
+    depends_on:
+      - db
+    networks:
+      - local-network
+
+  #NginX
+  web:
+    container_name: ${PROJECT_NAME}_web
+    build:
+      context: ./
+      dockerfile: docker/web.Dockerfile
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${PROJECT_NAME}-web.entrypoints=http
+      - traefik.http.routers.${PROJECT_NAME}-web.rule=HostRegexp(`{subhost:[a-z]+}.yii2.local`, `yii2.local`)
+      - traefik.http.middlewares.${PROJECT_NAME}-web-https-redirect.redirectscheme.scheme=https
+      - traefik.http.routers.${PROJECT_NAME}-web.middlewares=${PROJECT_NAME}-web-https-redirect
+      - traefik.http.routers.${PROJECT_NAME}-web-secure.entrypoints=https
+      - traefik.http.routers.${PROJECT_NAME}-web-secure.rule=HostRegexp(`{subhost:[a-z]+}.yii2.local`, `yii2.local`)
+      - traefik.http.routers.${PROJECT_NAME}-web-secure.tls=true
+      - traefik.http.routers.${PROJECT_NAME}-web-secure.service=${PROJECT_NAME}-web-https
+      - traefik.http.services.${PROJECT_NAME}-web-https.loadbalancer.server.port=443
+      - traefik.http.services.${PROJECT_NAME}-web-https.loadbalancer.server.scheme=https
+      - traefik.docker.network=traefik
+    volumes:
+      - ./frontend/web:/app/frontend/web
+      - ./backend/web:/app/backend/web
+      - ./docker/config/vhost.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/crt:/etc/ssl
+    command: [nginx-debug, '-g', 'daemon off;']
+    depends_on:
+      - app
+    networks:
+      - local-network
+      - traefik
+
+#Docker Networks
+networks:
+  local-network:
+    driver: bridge
+  traefik:
+    external: true
